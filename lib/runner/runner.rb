@@ -100,14 +100,14 @@ module Testbot::Runner
         next_job = Server.get("/jobs/next", :query => next_params) rescue nil
         last_check_found_a_job = (next_job != nil)
         next unless last_check_found_a_job
-
+        instance_number = free_instance_number
         job = Job.new(*([ self, next_job.split(',') ].flatten))
         if first_job_from_requester?
           fetch_code(job)
-          before_run(job) if File.exists?("#{job.project}/lib/tasks/testbot.rake")
+          before_run(job, instance_number) if File.exists?("#{job.project}/lib/tasks/testbot.rake")
         end
 
-        @instances << [ Thread.new { job.run(free_instance_number) },
+        @instances << [ Thread.new { job.run(instance_number) },
           free_instance_number, job ]
         @last_requester_mac = job.requester_mac
         loop do
@@ -126,9 +126,9 @@ module Testbot::Runner
       system "rsync -az --delete -e ssh #{job.root}/ #{job.project}"
     end
 
-    def before_run(job)
+    def before_run(job, instance_number)
       bundler_cmd = RubyEnv.bundler?(job.project) ? "bundle; " : ""
-      system "export RAILS_ENV=test; export TEST_INSTANCES=#{@config.max_instances}; cd #{job.project}; #{bundler_cmd} rake testbot:before_run"
+      system "export RAILS_ENV=test; export TEST_INSTANCES=#{@config.max_instances}; export TEST_ENV_NUMBER=#{instance_number}; cd #{job.project}; #{bundler_cmd} rake testbot:before_run"
     end
 
     def first_job_from_requester?
